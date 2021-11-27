@@ -1,0 +1,109 @@
+Hi!
+This, a quickstart showing how to test consul/spring boot discovery and LB using ansible roles & Jenkinsfile (created in a hurry) !!
+
+Requirement:
+1. a kubernetes cluster: master0 and worker0 installed on (virtualbox Redhat 8.4 appliances) with two NIC each one (host-only + NAT)
+
+    [root@master0 ~]# kubectl get nodes -A -o wide
+    NAME                 STATUS   ROLES                  AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE                               KERNEL-VERSION                 CONTAINER-RUNTIME
+    master0.home.local   Ready    control-plane,master   15d   v1.22.1   192.168.56.6   <none>        Red Hat Enterprise Linux 8.4 (Ootpa)   4.18.0-305.19.1.el8_4.x86_64   cri-o://1.22.0
+    worker0.home.local   Ready    <none>                 15d   v1.22.1   192.168.56.2   <none>        Red Hat Enterprise Linux 8.4 (Ootpa)   4.18.0-305.el8.x86_64          cri-o://1.22.0
+
+2. a Jenkins Server with maven, jdk11, ansible (Jenkins 2.303.3 on Opensuse Leap 15.3)
+
+   jenkins@leap15:/opt/jenkins> ansible --version
+   ansible 2.9.21
+   config file = /opt/jenkins/.ansible/ansible.cfg
+   configured module search path = ['/opt/jenkins/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+   ansible python module location = /usr/lib/python3.6/site-packages/ansible
+   executable location = /usr/bin/ansible
+   python version = 3.6.13 (default, Mar 10 2021, 18:30:35) [GCC]
+
+Steps to test:
+
+1. Install the consul server using helm chart, on kubernetes (create the required pvc before the install):
+ 
+    [root@master0 ~]# kubectl get pvc -A -o wide
+    NAMESPACE   NAME                                 STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS    AGE     VOLUMEMODE
+    consul      data-consul-consul-consul-server-0   Bound     pv002    800M       RWO            local-storage   6d23h   Filesystem
+    consul      data-consul-consul-consul-server-1   Bound     pv003    800M       RWO            local-storage   6d23h   Filesystem
+    consul      data-consul-consul-consul-server-2   Bound     pv001    800M       RWO            local-storage   6d23h   Filesystem
+    consul      spring-pvc1                          Pending                                      local-storage   5d18h   Filesystem
+    [root@master0 ~]# kubectl get pv -A -o wide
+    NAME      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                                       STORAGECLASS    REASON   AGE     VOLUMEMODE
+    pv001     800M       RWO            Retain           Bound       consul/data-consul-consul-consul-server-2   local-storage            6d23h   Filesystem
+    pv002     800M       RWO            Retain           Bound       consul/data-consul-consul-consul-server-0   local-storage            6d23h   Filesystem
+    pv003     800M       RWO            Retain           Bound       consul/data-consul-consul-consul-server-1   local-storage            6d23h   Filesystem
+    pvsp001   50M        RWO            Retain           Available                                               local-storage            5d19h   Filesystem
+    [root@master0 ~]# kubectl get sc -A -o wide
+    NAME            PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+    local-storage   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  7d20h
+
+2. Enable and Configure the access to the consul UI:
+ 
+    [root@master0 ~]# kubectl get svc -n consul -o wide
+    NAME                   TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                   AGE     SELECTOR
+    consul-consul-dns      ClusterIP   10.102.59.24     <none>        53/TCP,53/UDP                                                             6d23h   app=consul,hasDNS=true,release=consul
+    consul-consul-server   ClusterIP   None             <none>        8500/TCP,8301/TCP,8301/UDP,8302/TCP,8302/UDP,8300/TCP,8600/TCP,8600/UDP   6d23h   app=consul,component=server,release=consul
+    consul-consul-ui       NodePort    10.111.230.243   <none>        80:30080/TCP                                                              6d23h   app=consul,component=server,release=consul
+
+3. Test consul UI access: ( http://192.168.56.6:30080/ in my case ) It works !!
+4. Create a Pipeline Job (New Item -> choice 3 'Pipeline') witch takes as parameters SPRING_MOD -> (choices: service-a, services-b, service-c)
+5. create a local docker registry (in master0 in my case):
+
+    [root@master0 ~]# docker run -d -p 192.168.56.6:5000:5000 -e REGISTRY_STORAGE_DELETE_ENABLED=true --restart=always --name registry registry:2
+    [root@master0 ~]# docker ps
+    CONTAINER ID  IMAGE                         COMMAND               CREATED       STATUS          PORTS                        NAMES
+    c336c6e7febf  docker.io/library/registry:2  /etc/docker/regis...  21 hours ago  Up 6 hours ago  192.168.56.6:5000->5000/tcp  registry
+    [root@master0 ~]# 
+    [root@master0 ~]# curl -k -X GET http://master0.home.local:5000/v2/_catalog 
+    {"repositories":["spring-service-a","spring-service-b","spring-service-c"]}
+    [root@master0 ~]# 
+
+
+5. Run the Jenkins Job to create:
+   - service-a pod
+   - service-c pod
+   - 2 service-b pods (deployment)
+
+If every thing is ok, you should see:
+
+[root@master0 ~]# kubectl get pods -A -o wide 
+NAMESPACE     NAME                                         READY   STATUS    RESTARTS      AGE     IP              NODE                 NOMINATED NODE   READINESS GATES
+consul        consul-consul-j246v                          1/1     Running   7             6d2h    10.244.90.211   worker0.home.local   <none>           <none>
+consul        consul-consul-sdjgc                          1/1     Running   1             23h     10.244.159.63   master0.home.local   <none>           <none>
+consul        consul-consul-server-0                       1/1     Running   1             23h     10.244.159.59   master0.home.local   <none>           <none>
+consul        consul-consul-server-1                       1/1     Running   2             2d1h    10.244.90.212   worker0.home.local   <none>           <none>
+consul        consul-consul-server-2                       0/1     Pending   0             23h     <none>          <none>               <none>           <none>
+dev           service-a                                    1/1     Running   4 (45m ago)   4h45m   10.244.90.216   worker0.home.local   <none>           <none>
+dev           service-b-deploy-6b7987b795-mkw9m            1/1     Running   0             58m     10.244.90.219   worker0.home.local   <none>           <none>
+dev           service-b-deploy-6b7987b795-qgqbq            1/1     Running   0             49m     10.244.90.221   worker0.home.local   <none>           <none>
+dev           service-c                                    1/1     Running   4 (42m ago)   4h42m   10.244.90.217   worker0.home.local   <none>           <none>
+kube-system   calico-kube-controllers-74b8fbdb46-4mgk9     1/1     Running   15            15d     10.244.159.61   master0.home.local   <none>           <none>
+kube-system   calico-node-m9gs9                            1/1     Running   12            15d     192.168.56.2    worker0.home.local   <none>           <none>
+kube-system   calico-node-npq9d                            1/1     Running   12            15d     192.168.56.6    master0.home.local   <none>           <none>
+kube-system   coredns-78fcd69978-pflzt                     1/1     Running   12            15d     10.244.159.60   master0.home.local   <none>           <none>
+kube-system   coredns-78fcd69978-t5wln                     1/1     Running   12            15d     10.244.159.62   master0.home.local   <none>           <none>
+kube-system   etcd-master0.home.local                      1/1     Running   17            15d     192.168.56.6    master0.home.local   <none>           <none>
+kube-system   kube-apiserver-master0.home.local            1/1     Running   19            15d     192.168.56.6    master0.home.local   <none>           <none>
+kube-system   kube-controller-manager-master0.home.local   1/1     Running   38            15d     192.168.56.6    master0.home.local   <none>           <none>
+kube-system   kube-proxy-k2phj                             1/1     Running   12            15d     192.168.56.2    worker0.home.local   <none>           <none>
+kube-system   kube-proxy-v58hp                             1/1     Running   11            15d     192.168.56.6    master0.home.local   <none>           <none>
+kube-system   kube-scheduler-master0.home.local            1/1     Running   36            15d     192.168.56.6    master0.home.local   <none>           <none>
+[root@master0 ~]# 
+[root@master0 ~]# kubectl get svc -A -o wide 
+NAMESPACE     NAME                   TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                   AGE     SELECTOR
+consul        consul-consul-dns      ClusterIP   10.102.59.24     <none>        53/TCP,53/UDP                                                             6d23h   app=consul,hasDNS=true,release=consul
+consul        consul-consul-server   ClusterIP   None             <none>        8500/TCP,8301/TCP,8301/UDP,8302/TCP,8302/UDP,8300/TCP,8600/TCP,8600/UDP   6d23h   app=consul,component=server,release=consul
+consul        consul-consul-ui       NodePort    10.111.230.243   <none>        80:30080/TCP                                                              6d23h   app=consul,component=server,release=consul
+default       kubernetes             ClusterIP   10.96.0.1        <none>        443/TCP                                                                   15d     <none>
+dev           service-a-svc          NodePort    10.99.144.197    <none>        8081:30981/TCP                                                            5h58m   app=service-a
+kube-system   kube-dns               ClusterIP   10.96.0.10       <none>        53/UDP,53/TCP,9153/TCP                                                    15d     k8s-app=kube-dns
+
+6. To test, consul loadbalancing:
+   kubectl delete pods service-b-deploy-6b7987b795-mkw9m -n dev
+
+and test the app using the url (http://192.168.56.6:30981/greeting in my case). If LB is ok you should see the message .. do it quickly while the deleted pod is being created ;)
+
+Thanks !
+MagonBC.
