@@ -5,6 +5,8 @@ spring:
     active: "dev"
   cloud:
     consul:
+      host: consul-consul-server.consul
+      port: 8500
       discovery:
         instanceId: "${spring.application.name}-${server.port}-${spring.cloud.client.ip-address}"
         prefer-ip-address: true
