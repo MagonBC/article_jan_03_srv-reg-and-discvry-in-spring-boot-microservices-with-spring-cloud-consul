@@ -5,17 +5,17 @@
 #    state: absent
 #    path: "/app/BuildDir/{{ module }}"
 #
-#- name: create build dir
-#  file:
-#    state: directory
-#    path: "/app/BuildDir/{{ module }}"
-#    mode: "0755"
-#
-#- name: create target dir
-#  file:
-#    state: directory
-#    path: "/app/BuildDir/{{ module }}/target"
-#    mode: "0755"
+- name: create build dir
+  file:
+    state: directory
+    path: "/app/BuildDir/{{ module }}"
+    mode: "0755"
+
+- name: create target dir
+  file:
+    state: directory
+    path: "/app/BuildDir/{{ module }}/target"
+    mode: "0755"
 
 - name: copy jar file
   copy:
@@ -68,18 +68,22 @@
   when: pod_info.resources|length > 0
 
 - name: delete old image in {{ worker_node }}
-  containers.podman.podman_image:
+  podman_image:
     name: "{{ docker_registry }}/spring-{{ module }}" 
     state: absent
   delegate_to: "{{ worker_node }}"
 
 - set_fact:
-    svc_pod_selector: "hr-api"
-  when: module == "api"
+    svc_pod_selector: "service-b"
+  when: module == "service-b"
 
 - set_fact:
-    svc_pod_selector: "hr-webapp"
-  when:  module == "webapp"
+    svc_pod_selector: "service-a"
+  when:  module == "service-a"
+
+- set_fact:
+    svc_pod_selector: "service-c"
+  when: module == "service-c"
 
 - name: create kube namespace
   kubernetes.core.k8s:
@@ -121,28 +125,28 @@
           imagePullPolicy: IfNotPresent
         restartPolicy: Always
 #
-- name: Create api service
-  kubernetes.core.k8s:
-    state: present
-    force: no
-    kubeconfig: "/etc/kubernetes/admin.conf"
-    definition:
-      apiVersion: v1
-      kind: service
-      metadata:
-        name: "{{ module }}-svc"
-        namespace: "{{ name_space }}"
-      spec:
-        type: ClusterIP
-        selector:
-          app: "{{ svc_pod_selector }}"
-        ports:
-          - protocol: TCP
-            port: 9000
-            targetPort: 9000 
-  when: module == "api"
+#- name: Create api service
+#  kubernetes.core.k8s:
+#    state: present
+#    force: no
+#    kubeconfig: "/etc/kubernetes/admin.conf"
+#    definition:
+#      apiVersion: v1
+#      kind: service
+#      metadata:
+#        name: "{{ module }}-svc"
+#        namespace: "{{ name_space }}"
+#      spec:
+#        type: ClusterIP
+#        selector:
+#          app: "{{ svc_pod_selector }}"
+#        ports:
+#          - protocol: TCP
+#            port: 9000
+#            targetPort: 9000 
+#  when: module == "api"
     
-- name: Create webapp service
+- name: Create service-a service
   kubernetes.core.k8s:
     state: present
     force: no
@@ -158,8 +162,8 @@
         selector:
           app: "{{ svc_pod_selector }}"
         ports:
-          - port: 9001
-            targetPort: 9001
-            nodePort: 31981
-  when: module == "webapp"
+          - port: 8081
+            targetPort: 8081
+            nodePort: 30981
+  when: module == "service-a"
 
