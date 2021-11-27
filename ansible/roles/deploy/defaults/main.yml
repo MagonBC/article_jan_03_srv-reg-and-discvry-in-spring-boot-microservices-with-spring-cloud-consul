@@ -1,0 +1,9 @@
+---
+# defaults file for deploy
+workdir: "-"
+module: "-"
+version: "-"
+builddir: "/app/BuildDir"
+docker_registry: "master0.home.local:5000" 
+name_space: "dev"
+worker_node: "worker0.home.local"

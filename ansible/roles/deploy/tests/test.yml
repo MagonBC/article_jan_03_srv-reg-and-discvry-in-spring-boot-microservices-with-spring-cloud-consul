@@ -1,0 +1,4 @@
+---
+- hosts: master0.home.local
+  roles:
+    - deploy

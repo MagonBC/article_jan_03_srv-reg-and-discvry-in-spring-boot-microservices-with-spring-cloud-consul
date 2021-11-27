@@ -1,0 +1,165 @@
+---
+# tasks file for deploy
+#- name: purge build dir
+#  file:
+#    state: absent
+#    path: "/app/BuildDir/{{ module }}"
+#
+#- name: create build dir
+#  file:
+#    state: directory
+#    path: "/app/BuildDir/{{ module }}"
+#    mode: "0755"
+#
+#- name: create target dir
+#  file:
+#    state: directory
+#    path: "/app/BuildDir/{{ module }}/target"
+#    mode: "0755"
+
+- name: copy jar file
+  copy:
+    src: "{{ workdir }}/{{ module }}/target/{{ module }}-{{ version }}.jar"
+    dest: "{{ builddir }}/{{ module }}/target"
+    force: yes
+
+- name: copy Dockerfile
+  copy: 
+    src: "files/Dockerfile"
+    dest: "{{ builddir }}/{{ module }}/Dockerfile"
+    force: yes
+
+- name: build container image and push to a docker registry
+  podman_image:
+    name: "{{ docker_registry }}/spring-{{ module }}"
+    path: "{{ builddir }}/{{ module }}"
+    push: yes
+    force: yes
+    build:
+      format: docker
+    push_args:
+      dest: "http://{{ docker_registry }}/spring-{{ module }}"
+    validate_certs: false
+
+- name: get Pod {{ module }} info
+  kubernetes.core.k8s_info:
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    api_version: v1
+    kind: Pod
+    name: "{{ module }}"
+    namespace: "{{ name_space }}"
+  register: pod_info
+
+- set_fact:
+    worker_node: "{{ pod_info.resources[0].spec.nodeName }}"
+  when: pod_info.resources|length > 0
+
+#- debug: var=pod_info
+#- debug: var=worker_node
+
+- name: delete pod in {{ worker_node }}
+  kubernetes.core.k8s:
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    state: absent
+    api_version: v1
+    kind: Pod
+    namespace: "{{ name_space }}"
+    name: "{{ module }}"
+  when: pod_info.resources|length > 0
+
+- name: delete old image in {{ worker_node }}
+  containers.podman.podman_image:
+    name: "{{ docker_registry }}/spring-{{ module }}" 
+    state: absent
+  delegate_to: "{{ worker_node }}"
+
+- set_fact:
+    svc_pod_selector: "hr-api"
+  when: module == "api"
+
+- set_fact:
+    svc_pod_selector: "hr-webapp"
+  when:  module == "webapp"
+
+- name: create kube namespace
+  kubernetes.core.k8s:
+    force: yes
+    state: present
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ name_space }}"
+        labels:
+          name: "{{ name_space }}"
+
+- name: Create a pod
+  kubernetes.core.k8s:
+    force: yes
+    state: present
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    definition:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: "{{ module }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ svc_pod_selector }}"
+      spec:
+        containers:
+        - name: "{{ module }}"
+          image: "{{ docker_registry }}/spring-{{ module }}" 
+          command:
+            - sleep
+            - "3600"
+        #  command:
+        #    - java 
+        #    - "-jar" 
+        #    - "app.jar"
+          imagePullPolicy: IfNotPresent
+        restartPolicy: Always
+#
+- name: Create api service
+  kubernetes.core.k8s:
+    state: present
+    force: no
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    definition:
+      apiVersion: v1
+      kind: service
+      metadata:
+        name: "{{ module }}-svc"
+        namespace: "{{ name_space }}"
+      spec:
+        type: ClusterIP
+        selector:
+          app: "{{ svc_pod_selector }}"
+        ports:
+          - protocol: TCP
+            port: 9000
+            targetPort: 9000 
+  when: module == "api"
+    
+- name: Create webapp service
+  kubernetes.core.k8s:
+    state: present
+    force: no
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    definition:
+      apiVersion: v1
+      kind: service
+      metadata:
+        name: "{{ module }}-svc"
+        namespace: "{{ name_space }}"
+      spec:
+        type: NodePort
+        selector:
+          app: "{{ svc_pod_selector }}"
+        ports:
+          - port: 9001
+            targetPort: 9001
+            nodePort: 31981
+  when: module == "webapp"
+

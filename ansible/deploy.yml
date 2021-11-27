@@ -1,0 +1,8 @@
+---
+- hosts: master0.home.local
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  collections:
+    - kubernetes.core
+  roles:
+    - deploy
