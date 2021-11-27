@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: {{ module }}-deploy
+   namespace: {{ name_space }}
+   labels:
+     app: {{ module }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{ module }}
+  template:
+    metadata:
+      labels:
+        app: {{ module }} 
+    spec:
+      containers:
+      - name: {{ module }}
+        image: {{ docker_registry }}/spring-{{ module }}
+        command:
+          - sleep
+          - 3600
+        command:
+          - java 
+          - -jar 
+          - app.jar
+        imagePullPolicy: IfNotPresent
+      restartPolicy: Always 
