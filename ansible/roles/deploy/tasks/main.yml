@@ -49,10 +49,11 @@
     name: "{{ module }}"
     namespace: "{{ name_space }}"
   register: pod_info
+  when: module != "service-b" # if a pod belong to deplyment, it will be recreated automatically !
 
 - set_fact:
     worker_node: "{{ pod_info.resources[0].spec.nodeName }}"
-  when: pod_info.resources|length > 0
+  when: pod_info.resources|length > 0 && module != "service-b"
 
 #- debug: var=pod_info
 #- debug: var=worker_node
@@ -65,25 +66,16 @@
     kind: Pod
     namespace: "{{ name_space }}"
     name: "{{ module }}"
-  when: pod_info.resources|length > 0
+  when: pod_info.resources|length > 0 && module != "service-b"
 
 - name: delete old image in {{ worker_node }}
   podman_image:
     name: "{{ docker_registry }}/spring-{{ module }}" 
     state: absent
   delegate_to: "{{ worker_node }}"
+  when: module != "service-b"
 
-- set_fact:
-    svc_pod_selector: "service-b"
-  when: module == "service-b"
-
-- set_fact:
-    svc_pod_selector: "service-a"
-  when:  module == "service-a"
-
-- set_fact:
-    svc_pod_selector: "service-c"
-  when: module == "service-c"
+### TODO: a task to delete podman images used to create deployment pods containers. 
 
 - name: create kube namespace
   kubernetes.core.k8s:
@@ -110,7 +102,7 @@
         name: "{{ module }}"
         namespace: "{{ name_space }}"
         labels:
-          app: "{{ svc_pod_selector }}"
+          app: "{{ module }}"
       spec:
         containers:
         - name: "{{ module }}"
@@ -118,34 +110,23 @@
           command:
             - sleep
             - "3600"
-        #  command:
-        #    - java 
-        #    - "-jar" 
-        #    - "app.jar"
+          command:
+            - java 
+            - "-jar" 
+            - "app.jar"
           imagePullPolicy: IfNotPresent
         restartPolicy: Always
-#
-#- name: Create api service
-#  kubernetes.core.k8s:
-#    state: present
-#    force: no
-#    kubeconfig: "/etc/kubernetes/admin.conf"
-#    definition:
-#      apiVersion: v1
-#      kind: service
-#      metadata:
-#        name: "{{ module }}-svc"
-#        namespace: "{{ name_space }}"
-#      spec:
-#        type: ClusterIP
-#        selector:
-#          app: "{{ svc_pod_selector }}"
-#        ports:
-#          - protocol: TCP
-#            port: 9000
-#            targetPort: 9000 
-#  when: module == "api"
-    
+  when: module != "service-b"
+
+
+- name: Create two instance for {{ module }}
+  kubernetes.core.k8s:
+    state: present
+    force: yes
+    kubeconfig: "/etc/kubernetes/admin.conf"
+    template: 'templates/deployment.j2'
+  when: module == "service-b"
+
 - name: Create service-a service
   kubernetes.core.k8s:
     state: present
@@ -160,7 +141,7 @@
       spec:
         type: NodePort
         selector:
-          app: "{{ svc_pod_selector }}"
+          app: "{{ module }}"
         ports:
           - port: 8081
             targetPort: 8081
