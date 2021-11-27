@@ -69,27 +69,27 @@ Steps to test:
 If every thing is ok, you should see:
 
 [root@master0 ~]# kubectl get pods -A -o wide 
-NAMESPACE     NAME                                         READY   STATUS    RESTARTS      AGE     IP              NODE                 NOMINATED NODE   READINESS GATES
-consul        consul-consul-j246v                          1/1     Running   7             6d2h    10.244.90.211   worker0.home.local   <none>           <none>
-consul        consul-consul-sdjgc                          1/1     Running   1             23h     10.244.159.63   master0.home.local   <none>           <none>
-consul        consul-consul-server-0                       1/1     Running   1             23h     10.244.159.59   master0.home.local   <none>           <none>
-consul        consul-consul-server-1                       1/1     Running   2             2d1h    10.244.90.212   worker0.home.local   <none>           <none>
-consul        consul-consul-server-2                       0/1     Pending   0             23h     <none>          <none>               <none>           <none>
-dev           service-a                                    1/1     Running   4 (45m ago)   4h45m   10.244.90.216   worker0.home.local   <none>           <none>
-dev           service-b-deploy-6b7987b795-mkw9m            1/1     Running   0             58m     10.244.90.219   worker0.home.local   <none>           <none>
-dev           service-b-deploy-6b7987b795-qgqbq            1/1     Running   0             49m     10.244.90.221   worker0.home.local   <none>           <none>
-dev           service-c                                    1/1     Running   4 (42m ago)   4h42m   10.244.90.217   worker0.home.local   <none>           <none>
-kube-system   calico-kube-controllers-74b8fbdb46-4mgk9     1/1     Running   15            15d     10.244.159.61   master0.home.local   <none>           <none>
-kube-system   calico-node-m9gs9                            1/1     Running   12            15d     192.168.56.2    worker0.home.local   <none>           <none>
-kube-system   calico-node-npq9d                            1/1     Running   12            15d     192.168.56.6    master0.home.local   <none>           <none>
-kube-system   coredns-78fcd69978-pflzt                     1/1     Running   12            15d     10.244.159.60   master0.home.local   <none>           <none>
-kube-system   coredns-78fcd69978-t5wln                     1/1     Running   12            15d     10.244.159.62   master0.home.local   <none>           <none>
-kube-system   etcd-master0.home.local                      1/1     Running   17            15d     192.168.56.6    master0.home.local   <none>           <none>
-kube-system   kube-apiserver-master0.home.local            1/1     Running   19            15d     192.168.56.6    master0.home.local   <none>           <none>
-kube-system   kube-controller-manager-master0.home.local   1/1     Running   38            15d     192.168.56.6    master0.home.local   <none>           <none>
-kube-system   kube-proxy-k2phj                             1/1     Running   12            15d     192.168.56.2    worker0.home.local   <none>           <none>
-kube-system   kube-proxy-v58hp                             1/1     Running   11            15d     192.168.56.6    master0.home.local   <none>           <none>
-kube-system   kube-scheduler-master0.home.local            1/1     Running   36            15d     192.168.56.6    master0.home.local   <none>           <none>
+NAMESPACE     NAME                                         READY   STATUS    RESTARTS      AGE        NODE                 NOMINATED NODE   READINESS GATES
+consul        consul-consul-j246v                          1/1     Running   7             6d2h       worker0.home.local   <none>           <none>
+consul        consul-consul-sdjgc                          1/1     Running   1             23h        master0.home.local   <none>           <none>
+consul        consul-consul-server-0                       1/1     Running   1             23h        master0.home.local   <none>           <none>
+consul        consul-consul-server-1                       1/1     Running   2             2d1h       worker0.home.local   <none>           <none>
+consul        consul-consul-server-2                       0/1     Pending   0             23h        <none>               <none>           <none>
+dev           service-a                                    1/1     Running   4 (45m ago)   4h45m      worker0.home.local   <none>           <none>
+dev           service-b-deploy-6b7987b795-mkw9m            1/1     Running   0             58m        worker0.home.local   <none>           <none>
+dev           service-b-deploy-6b7987b795-qgqbq            1/1     Running   0             49m        worker0.home.local   <none>           <none>
+dev           service-c                                    1/1     Running   4 (42m ago)   4h42m      worker0.home.local   <none>           <none>
+kube-system   calico-kube-controllers-74b8fbdb46-4mgk9     1/1     Running   15            15d        master0.home.local   <none>           <none>
+kube-system   calico-node-m9gs9                            1/1     Running   12            15d        worker0.home.local   <none>           <none>
+kube-system   calico-node-npq9d                            1/1     Running   12            15d        master0.home.local   <none>           <none>
+kube-system   coredns-78fcd69978-pflzt                     1/1     Running   12            15d        master0.home.local   <none>           <none>
+kube-system   coredns-78fcd69978-t5wln                     1/1     Running   12            15d        master0.home.local   <none>           <none>
+kube-system   etcd-master0.home.local                      1/1     Running   17            15d        master0.home.local   <none>           <none>
+kube-system   kube-apiserver-master0.home.local            1/1     Running   19            15d        master0.home.local   <none>           <none>
+kube-system   kube-controller-manager-master0.home.local   1/1     Running   38            15d        master0.home.local   <none>           <none>
+kube-system   kube-proxy-k2phj                             1/1     Running   12            15d        worker0.home.local   <none>           <none>
+kube-system   kube-proxy-v58hp                             1/1     Running   11            15d        master0.home.local   <none>           <none>
+kube-system   kube-scheduler-master0.home.local            1/1     Running   36            15d        master0.home.local   <none>           <none>
 [root@master0 ~]# 
 [root@master0 ~]# kubectl get svc -A -o wide 
 NAMESPACE     NAME                   TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                   AGE     SELECTOR

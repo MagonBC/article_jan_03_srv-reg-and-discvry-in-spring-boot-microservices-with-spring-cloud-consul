@@ -75,8 +75,6 @@
   delegate_to: "{{ worker_node }}"
   when: module != "service-b"
 
-### TODO: a task to delete podman images used to create deployment pods containers. 
-
 - name: create kube namespace
   kubernetes.core.k8s:
     force: yes
